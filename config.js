@@ -1,6 +1,6 @@
 // Edit BACKEND_URL after deploying the Apps Script (see README.md).
 window.POLL_CONFIG = {
-  "BACKEND_URL": "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE",
+  "BACKEND_URL": "https://script.google.com/macros/s/AKfycbyrIyAngB-4F8eSSrZqXNl7_yn517FsYPHi-bcWa3Kyqnm3ZfXUGdb0T-__XQexLzUs/exec",
   "TITLE": "Perceived Safety on Campus Roads",
   "SESSION": "Campus Road Safety Awareness Session · IIT Kharagpur · 12 October 2026",
   "SCALE": [
