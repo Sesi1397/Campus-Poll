@@ -14,7 +14,7 @@
     <select id="pick" aria-label="Scenario"></select>
     <button type="button" id="next" aria-label="Next scenario">&rarr;</button>
     <button type="button" id="toggleOverview" aria-pressed="false">All results</button>
-    <button type="button" id="toggleResults" aria-pressed="false">Show results</button>
+    <button type="button" id="toggleResults" aria-pressed="true">Show results</button>
   </div>
 
   <div id="cfgNotice" class="notice hidden" style="margin:16px 32px 0">Not connected: paste the Apps Script web app URL into <b>config.js</b> (see README). The QR codes below already work.</div>
@@ -45,7 +45,7 @@
 (function () {
   const { CFG, configured, call, scenario, indexOf, stats, el } = window.Poll;
   const $ = (id) => document.getElementById(id);
-  let data = null, showResults = false, overview = false;
+  let data = null, showResults = true, overview = false;
   let current = scenario((new URLSearchParams(location.search).get('q') || '').toUpperCase()) || CFG.SCENARIOS[0];
 
   $('brand').textContent = CFG.TITLE;

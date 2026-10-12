@@ -166,7 +166,8 @@
     }
   }
 
-  if (!profile) showProfile(); else show(current);
+  // The main QR (no ?q=) starts with P1-P3; a scenario QR opens that scenario directly.
+  if (!profile && !params.get('q')) showProfile(); else show(current);
 })();
 </script>
 </body>
