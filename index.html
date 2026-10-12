@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Results: Perceived Safety on Campus Roads</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="present">
+  <div class="bar">
+    <span class="brand" id="brand"></span>
+    <button type="button" id="prev" aria-label="Previous scenario">&larr;</button>
+    <select id="pick" aria-label="Scenario"></select>
+    <button type="button" id="next" aria-label="Next scenario">&rarr;</button>
+    <button type="button" id="toggleOverview" aria-pressed="false">All results</button>
+    <button type="button" id="toggleResults" aria-pressed="false">Show results</button>
+  </div>
+
+  <div id="cfgNotice" class="notice hidden" style="margin:16px 32px 0">Not connected: paste the Apps Script web app URL into <b>config.js</b> (see README). The QR codes below already work.</div>
+
+  <div class="stage" id="stage">
+    <div class="qrbox">
+      <div id="qr" aria-label="QR code for this scenario"></div>
+      <div class="url" id="url"></div>
+      <div class="resp" id="resp"></div>
+    </div>
+    <div>
+      <p class="scen-id" id="sId"></p>
+      <h1 class="scen-title" id="sTitle"></h1>
+      <p class="scen-q" id="sQ"></p>
+      <div id="results"></div>
+      <p class="muted small" id="hiddenNote" style="display:none">Results hidden while the audience rates.</p>
+    </div>
+  </div>
+
+  <div class="overview-wrap hidden" id="overview"></div>
+
+  <div class="foot"><span id="session"></span><span id="updated">Waiting for data…</span></div>
+</div>
+<script src="qrcode.js"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>
+(function () {
+  const { CFG, configured, call, scenario, indexOf, stats, el } = window.Poll;
+  const $ = (id) => document.getElementById(id);
+  let data = null, showResults = false, overview = false;
+  let current = scenario((new URLSearchParams(location.search).get('q') || '').toUpperCase()) || CFG.SCENARIOS[0];
+
+  $('brand').textContent = CFG.TITLE;
+  $('session').textContent = CFG.SESSION;
+  if (!configured()) $('cfgNotice').classList.remove('hidden');
+  CFG.SCENARIOS.forEach((s) => $('pick').appendChild(el('option', { value: s.id, text: s.id + '  ' + s.title })));
+  $('pick').addEventListener('change', (e) => show(scenario(e.target.value)));
+  $('prev').addEventListener('click', () => step(-1));
+  $('next').addEventListener('click', () => step(1));
+  $('toggleResults').addEventListener('click', () => { showResults = !showResults; $('toggleResults').setAttribute('aria-pressed', String(showResults)); render(); });
+  $('toggleOverview').addEventListener('click', () => {
+    overview = !overview;
+    $('toggleOverview').setAttribute('aria-pressed', String(overview));
+    $('stage').classList.toggle('hidden', overview);
+    $('overview').classList.toggle('hidden', !overview);
+    render();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'SELECT') return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') step(1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') step(-1);
+  });
+
+  function step(d) {
+    const i = indexOf(current.id) + d;
+    if (i >= 0 && i < CFG.SCENARIOS.length) show(CFG.SCENARIOS[i]);
+  }
+
+  function voteUrl(id) { return new URL('vote.html?q=' + id, location.href).href; }
+
+  function show(s) {
+    current = s;
+    history.replaceState(null, '', '?q=' + s.id);
+    $('pick').value = s.id;
+    $('sId').textContent = s.id + '  ·  ' + s.perspective;
+    $('sTitle').textContent = s.title;
+    $('sQ').textContent = s.question;
+    const url = voteUrl(s.id);
+    $('qr').textContent = '';
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    $('qr').innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0, scalable: true });
+    $('url').textContent = url.replace(/^https?:\/\//, '');
+    render();
+  }
+
+  function fmt(x, d) { return x === null ? '–' : (Number.isInteger(x) ? String(x) : x.toFixed(d)); }
+
+  function render() {
+    $('resp').textContent = data ? data.respondents + (data.respondents === 1 ? ' respondent' : ' respondents') : '';
+    if (overview) return renderOverview();
+    const box = $('results');
+    box.textContent = '';
+    $('hiddenNote').style.display = showResults ? 'none' : 'block';
+    if (!showResults) return;
+    current.items.forEach((it) => {
+      const counts = (data && data.items[it.code]) || [0, 0, 0, 0, 0];
+      const st = stats(counts);
+      const max = Math.max(1, ...counts);
+      const hist = el('div', { class: 'hist' });
+      [5, 4, 3, 2, 1].forEach((v) => {
+        const c = counts[v - 1];
+        const fill = el('div', { class: 'fill' });
+        fill.style.width = (100 * c / max) + '%';
+        hist.appendChild(el('div', { text: v + '  ' + CFG.SCALE[v - 1] }));
+        hist.appendChild(el('div', { class: 'track' }, [fill]));
+        hist.appendChild(el('div', { class: 'val', text: st.n ? c + ' (' + Math.round(100 * c / st.n) + '%)' : '0' }));
+      });
+      box.appendChild(el('div', { class: 'res-item' }, [
+        el('div', { class: 'res-head' }, [
+          el('span', {}, current.items.length > 1 ? [el('b', { text: it.code }), '  ' + it.label] : [el('b', { text: it.code })]),
+          el('span', { text: 'n = ' + st.n + '   median = ' + fmt(st.median, 1) })
+        ]),
+        hist
+      ]));
+    });
+  }
+
+  function renderOverview() {
+    const wrap = $('overview');
+    wrap.textContent = '';
+    const head = el('tr', {}, ['Item', 'Scenario', 'Perspective', 'n', 'Median', 'Mean', '% rating 1–2'].map((h, i) => el('th', { class: i >= 3 ? 'num' : '', text: h })));
+    const body = el('tbody');
+    CFG.SCENARIOS.forEach((s) => s.items.forEach((it) => {
+      const st = stats(data && data.items[it.code]);
+      body.appendChild(el('tr', {}, [
+        el('td', { text: it.code }), el('td', { text: s.title }), el('td', { text: s.perspective }),
+        el('td', { class: 'num', text: String(st.n) }), el('td', { class: 'num', text: fmt(st.median, 1) }),
+        el('td', { class: 'num', text: fmt(st.mean, 2) }), el('td', { class: 'num', text: st.unsafe === null ? '–' : Math.round(100 * st.unsafe) + '%' })
+      ]));
+    }));
+    wrap.appendChild(el('table', { class: 'overview' }, [el('thead', {}, [head]), body]));
+    wrap.appendChild(el('p', { class: 'small muted', text: 'Latest rating per respondent per item. Ratings: 1 very unsafe to 5 very safe.' }));
+  }
+
+  async function poll() {
+    if (configured() && !document.hidden) {
+      try {
+        data = await call({ action: 'results' }, 1);
+        $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        render();
+      } catch (e) {
+        $('updated').textContent = 'Could not reach the backend; retrying…';
+      }
+    }
+    setTimeout(poll, 4000);
+  }
+
+  show(current);
+  poll();
+})();
+</script>
+</body>
+</html>
